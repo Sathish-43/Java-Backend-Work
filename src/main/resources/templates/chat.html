@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body {
+            /*background: linear-gradient(to right, #222831, #393E46);*/
+            color: #EEEEEE;
+            font-family: Arial, sans-serif;
+        }
+        .chat-container {
+            max-width: 800px;
+            margin: 50px auto;
+            background: rgb(255, 255, 255); /* Slightly lighter background for the container */
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        #messages {
+            height: 300px;
+            overflow-y: scroll;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #222831;
+            border-radius: 5px;
+            background-color: rgb(255, 128, 64);
+        }
+        .message-input {
+            display: flex;
+        }
+        .message-input input {
+            flex: 1;
+            margin-right: 10px;
+            background-color: rgb(255, 255, 255); /* Lighter input field background */
+            color: #EEEEEE;
+            border: 1px solid #00ADB5;
+            border-radius: 5px;
+        }
+        .message-input button {
+            background-color: #00ADB5;
+            color: #EEEEEE;
+            border: none;
+            border-radius: 5px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #2C3338; /* Lighter header background */
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            color: #EEEEEE;
+        }
+        .chatroom-name {
+            font-weight: bold;
+            color: #00ADB5; /* Light color for chatroom name */
+        }
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            background-color: #2C3338; /* Lighter footer background */
+            padding: 10px 0;
+            color: #EEEEEE;
+        }
+        .custom-link {
+            color: #00ADB5;
+        }
+        .btn-danger {
+            background-color: #F44336;
+            color: #fff;
+        }
+        .social-icons {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-right: 15px;
+        }
+        .social-icons a {
+            font-size: 36px;
+            color: #EEEEEE;
+        }
+
+        @media (max-width: 767px) {
+            .chat-container {
+                width: 95%;
+                margin-top: 20px;
+            }
+            .message-input {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .message-input input {
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.1.4/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body class="bg-primary">
+<div class="header">
+    <h4 class="chatroom-name">Online Chatroom</h4>
+    <div class="d-flex align-items-center">
+        <div class="social-icons">
+            <a href="https://www.youtube.com" target="_blank" title="YouTube">
+                <i class="fab fa-youtube"></i>
+            </a>
+            <a href="https://www.linkedin.com" target="_blank" title="LinkedIn">
+                <i class="fab fa-linkedin"></i>
+            </a>
+        </div>
+        <button class="btn btn-danger" onclick="leaveChat()">Leave Chat</button>
+    </div>
+</div>
+<div class="chat-container">
+    <h4 class="text-dark">Welcome, <span id="username" class="text-primary"></span>!</h4>
+    <div id="messages"></div>
+    <div class="message-input">
+        <input type="text" id="messageInput" class="form-control" placeholder="Enter message...">
+        <button class="btn btn-success" onclick="sendMessage()">Send</button>
+    </div>
+</div>
+<footer class="footer">
+    <p>&copy; 2024 Code With Chat Application. All rights reserved. | <a href="#" class="custom-link">Privacy Policy</a> | <a href="#" class="custom-link">Terms of Service</a></p>
+</footer>
+
+<script>
+    var stompClient = null;
+    var username = new URLSearchParams(window.location.search).get('username');
+    document.getElementById('username').textContent = username;
+
+    // Assign a random color to each user
+    var userColors = {};
+    function getRandomColor() {
+        var letters = '0123456789ABCDEF';
+        var color = '#';
+        for (var i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
+
+    function connect() {
+        var socket = new SockJS('/chat-websocket');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function(frame) {
+            stompClient.subscribe('/topic/messages', function(messageOutput) {
+                showMessage(JSON.parse(messageOutput.body));
+            });
+            stompClient.send("/app/chat", {}, JSON.stringify({'username': username, 'content': username + ' has joined the chat'}));
+        });
+    }
+
+	
+	
+    function sendMessage() {
+        var messageInput = document.getElementById('messageInput').value;
+        stompClient.send("/app/chat", {}, JSON.stringify({'username': username, 'content': messageInput}));
+        document.getElementById('messageInput').value = '';
+    }
+
+    function leaveChat() {
+        stompClient.send("/app/leave", {}, JSON.stringify({'username': username, 'content': username + ' has left the chat'}));
+        window.location.href = "/";
+    }
+
+    function showMessage(message) {
+        var messagesDiv = document.getElementById('messages');
+        var messageElement = document.createElement('p');
+
+        // Assign a color to the user if not already assigned
+        if (!userColors[message.username]) {
+            userColors[message.username] = getRandomColor();
+        }
+
+        messageElement.style.backgroundColor = userColors[message.username];
+        messageElement.style.padding = '10px';
+        messageElement.style.borderRadius = '5px';
+        messageElement.style.marginBottom = '5px';
+        messageElement.style.color = '#fff';
+        messageElement.appendChild(document.createTextNode(message.username + ": " + message.content));
+
+        messagesDiv.appendChild(messageElement);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    connect();
+</script>
+</body>
+</html>
